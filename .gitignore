@@ -1,0 +1,15 @@
+# Ignore the build folder
+/build
+
+# Ignore the .vs folder
+.vs
+
+# Ignore the .vscode folder
+.vscode
+
+# Ignore the .idea folder
+.idea
+
+# Ignore the cmake-build-debug folder
+/cmake-build-debug
+
