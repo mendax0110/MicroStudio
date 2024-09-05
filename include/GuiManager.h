@@ -10,6 +10,7 @@
 #include "CommandExecutor.h"
 #include "CompilerHelper.h"
 #include "DebuggerHelper.h"
+#include "ShellManager.h"
 #include <thread>
 #include <stack>
 #include <mutex>
@@ -72,5 +73,6 @@ namespace MicroStudio
         bool isNewFileLoaded{};
         std::string rootDirectory;
         DebuggerHelper debugger;
+        ShellManager shellManager;
     };
 }

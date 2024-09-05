@@ -62,6 +62,8 @@ GuiManager::~GuiManager()
 
 void GuiManager::Run()
 {
+    shellManager.StartShellProcess();
+
     while (!glfwWindowShouldClose(window))
     {
         glfwPollEvents();
@@ -82,6 +84,8 @@ void GuiManager::Run()
             RenderSettingsWindow();
         }
         RenderFileDialog();
+
+        shellManager.RenderShellWindow();
 
         if (compileThread.joinable() && compileDone.load())
         {
@@ -107,7 +111,7 @@ void GuiManager::RenderDockingSpace()
 
     ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 0.0f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowBorderSize, 0.0f);
-    ImGui::Begin("DockSpace Demo", nullptr, window_flags);
+    ImGui::Begin("DockSpace", nullptr, window_flags);
     ImGui::PopStyleVar(2);
 
     ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
@@ -328,7 +332,6 @@ void GuiManager::RenderFileDialog()
             std::string filePath = selectedPath.parent_path().string();
 
             filePathName = fileName;
-            //filePath = filePath;
             rootDirectory = filePath;
 
             bool isFileOpen = false;

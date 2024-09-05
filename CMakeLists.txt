@@ -42,6 +42,7 @@ set(SOURCES
         src/CommandExecutor.cpp
         src/CompilerHelper.cpp
         src/DebuggerHelper.cpp
+        src/ShellManager.cpp
         src/main.cpp
         ${IMGUI_SOURCES}
         ${IMGUI_FILE_DIALOG_SOURCES}
