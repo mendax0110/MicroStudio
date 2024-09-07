@@ -11,6 +11,7 @@
 #include "CompilerHelper.h"
 #include "DebuggerHelper.h"
 #include "ShellManager.h"
+#include "FileHandler.h"
 #include <thread>
 #include <stack>
 #include <mutex>
@@ -38,6 +39,7 @@ namespace MicroStudio
         void RunCompiledCode();
         void CompileSelectedFile();
         void OpenFolder();
+        void CreateNewFile();
 
         struct OpenFile
         {
@@ -45,6 +47,7 @@ namespace MicroStudio
             std::string filePath;
             std::string content;
             TextEditor editor;
+            std::string fileData;
         };
 
         std::vector<OpenFile> openFiles;
@@ -74,5 +77,13 @@ namespace MicroStudio
         std::string rootDirectory;
         DebuggerHelper debugger;
         ShellManager shellManager;
+        FileHandler fileHandler;
+    };
+
+    enum class ActiveDialog
+    {
+        None,
+        OpenFile,
+        CreateFile
     };
 }

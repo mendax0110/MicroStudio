@@ -2,10 +2,11 @@
 #include <iostream>
 #include <cstdlib>
 #include <unistd.h>
+#include <csignal>
 
 using namespace MicroStudio;
 
-DebuggerHelper::DebuggerHelper() : isDebugging(false)
+DebuggerHelper::DebuggerHelper() : isDebugging(false), debugProcessPid(-1)
 {
     DetermineDebugger();
 }
@@ -50,6 +51,7 @@ bool DebuggerHelper::StartDebugging(const std::string &executablePath)
     }
     else if (pid > 0)
     {
+        debugProcessPid = pid;
         isDebugging = true;
         return true;
     }
@@ -66,6 +68,19 @@ void DebuggerHelper::StopDebugging()
     {
         std::cerr << "No debugging session to stop." << std::endl;
         return;
+    }
+
+    if (debugProcessPid != -1)
+    {
+        if (kill(debugProcessPid, SIGTERM) != 0)
+        {
+            std::cerr << "Failed to terminate the debugger process." << std::endl;
+        }
+        else
+        {
+            std::cout << "Debugger process terminated" << std::endl;
+        }
+        debugProcessPid = -1;
     }
 
     std::cout << "Stopping debugging session." << std::endl;

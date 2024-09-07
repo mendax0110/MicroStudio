@@ -6,37 +6,32 @@
 #include <imgui.h>
 #include <util.h>
 #include <fcntl.h>
+#include <csignal>
+#include <sys/wait.h>
 
 using namespace MicroStudio;
 
-ShellManager::ShellManager() : master_fd(-1)
+ShellManager::ShellManager() : master_fd(-1), shellPid(-1)
 {
 }
 
 ShellManager::~ShellManager()
 {
-    if (shellThread.joinable())
-    {
-        shellThread.join();
-    }
-    if (master_fd != -1)
-    {
-        close(master_fd);
-    }
+    StopShellProcess();
 }
 
 void ShellManager::StartShellProcess()
 {
-    int slave_fd;
     pid_t pid = forkpty(&master_fd, nullptr, nullptr, nullptr);
 
     if (pid == 0)
     {
-        execl("/bin/bash", "bash", (char *)NULL);
+        execl("/bin/bash", "bash", (char *)nullptr);
         _exit(1);
     }
     else if (pid > 0)
     {
+        shellPid = pid;
         shellThread = std::thread(&ShellManager::CaptureShellOutput, this);
     }
     else
@@ -45,25 +40,67 @@ void ShellManager::StartShellProcess()
     }
 }
 
+void ShellManager::StopShellProcess()
+{
+    if (shellPid > 0)
+    {
+        kill(shellPid, SIGTERM);
+        int status;
+        pid_t result = waitpid(shellPid, &status, 0);
+        if (result == -1)
+        {
+            std::cerr << "Error waiting for shell process to terminate: " << strerror(errno) << std::endl;
+        }
+
+        if (shellThread.joinable())
+        {
+            shellThread.join();
+        }
+
+        if (master_fd != -1)
+        {
+            close(master_fd);
+            master_fd = -1;
+        }
+
+        shellPid = -1;
+    }
+}
+
 void ShellManager::CaptureShellOutput()
 {
-    std::array<char, 128> buffer;
+    std::array<char, 128> buffer{};
+
     while (true)
     {
         ssize_t bytesRead = read(master_fd, buffer.data(), buffer.size());
+
         if (bytesRead > 0)
         {
             std::lock_guard<std::mutex> lock(shellOutputWindow);
             shellOutput.append(buffer.data(), bytesRead);
         }
+        else if (bytesRead == 0 || (bytesRead == -1 && errno == EIO))
+        {
+            break;
+        }
+        else if (bytesRead == -1)
+        {
+            std::cerr << "Error reading from shell: " << strerror(errno) << std::endl;
+            break;
+        }
     }
 }
 
-void ShellManager::SendCommandToShell(const std::string &command)
+void ShellManager::SendCommandToShell(const std::string &command) const
 {
     if (master_fd != -1)
     {
-        write(master_fd, command.c_str(), command.size());
+        ssize_t result = write(master_fd, command.c_str(), command.size());
+        if (result == -1)
+        {
+            std::cerr << "Failed to write command to shell: " << strerror(errno) << std::endl;
+        }
     }
 }
 

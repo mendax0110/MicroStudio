@@ -18,6 +18,7 @@ namespace MicroStudio
 
     private:
         bool isDebugging;
+        pid_t debugProcessPid;
         std::string debuggerExecutable;
 
         void DetermineDebugger();

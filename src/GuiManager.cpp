@@ -55,14 +55,16 @@ GuiManager::~GuiManager()
     delete rootNode;
     if (compileThread.joinable())
     {
+        compileDone.store(true);
         compileThread.join();
     }
     debugger.StopDebugging();
+    //shellManager.StopShellProcess();
 }
 
 void GuiManager::Run()
 {
-    shellManager.StartShellProcess();
+    //shellManager.StartShellProcess();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -85,7 +87,7 @@ void GuiManager::Run()
         }
         RenderFileDialog();
 
-        shellManager.RenderShellWindow();
+        //shellManager.RenderShellWindow();
 
         if (compileThread.joinable() && compileDone.load())
         {
@@ -126,6 +128,11 @@ void GuiManager::RenderMainMenu()
     {
         if (ImGui::BeginMenu("File"))
         {
+            if (ImGui::MenuItem("New File", "Ctrl+N"))
+            {
+                fileDialog.OpenDialog("CreateNewFileDlg", "Create New File", ".cpp,.h,.hpp");
+                //CreateNewFile();
+            }
             if (ImGui::MenuItem("Open", "Ctrl+O"))
             {
                 fileDialog.OpenDialog("ChooseFileDlg", "Choose File", ".cpp,.h,.hpp");
@@ -595,4 +602,40 @@ void GuiManager::CompileSelectedFile()
 void GuiManager::OpenFolder()
 {
 
+}
+
+void GuiManager::CreateNewFile()
+{
+    if (fileDialog.Display("CreateNewFileDlg"))
+    {
+        if (fileDialog.IsOk()) {
+            std::string newFilePath = fileDialog.GetFilePathName();
+            std::string newFileName = fileDialog.GetCurrentFileName();
+
+            bool fileCreated = fileHandler.CreateFile(newFilePath, newFileName);
+            if (fileCreated) {
+                std::cout << "[INFO] New file created: " << newFileName << std::endl;
+
+                OpenFile newFile;
+                newFile.fileName = newFileName;
+                newFile.filePath = newFilePath;
+
+                std::ifstream inFile(newFilePath, std::ios::in | std::ios::binary);
+                if (inFile) {
+                    std::ostringstream ss;
+                    ss << inFile.rdbuf();
+                    newFile.content = ss.str();
+
+                    newFile.editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
+                    newFile.editor.SetText(newFile.content);
+
+                    openFiles.push_back(newFile);
+                    currentFileIndex = openFiles.size() - 1;
+                } else {
+                    std::cerr << "[ERROR] Failed to open file: " << newFilePath << std::endl;
+                }
+            }
+        }
+        fileDialog.Close();
+    }
 }

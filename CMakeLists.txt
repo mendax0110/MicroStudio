@@ -47,6 +47,7 @@ set(SOURCES
         ${IMGUI_SOURCES}
         ${IMGUI_FILE_DIALOG_SOURCES}
         ${IMGUI_COLOR_TEXT_EDIT_SOURCES}
+        src/FileHandler.cpp
 )
 
 add_executable(${PROJECT_NAME} ${SOURCES})

@@ -14,14 +14,16 @@ namespace MicroStudio
         ~ShellManager();
 
         void StartShellProcess();
-        void SendCommandToShell(const std::string &command);
+        void SendCommandToShell(const std::string &command) const;
         void RenderShellWindow();
+        void StopShellProcess();
 
     private:
         int master_fd;
         std::thread shellThread;
         std::mutex shellOutputWindow;
         std::string shellOutput;
+        pid_t shellPid{};
 
         void CaptureShellOutput();
     };
