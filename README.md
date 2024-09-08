@@ -11,7 +11,9 @@ MicroStudio is a lightweight C++ Integrated Development Environment (IDE) design
 - **Execution:** Run compiled code directly from the IDE.
 - **Settings:** Customize the background color of the IDE.
 
-## Usage
+## Picture
+<img width="1470" alt="Bildschirmfoto 2024-09-08 um 19 33 18" src="https://github.com/user-attachments/assets/b9d11848-6084-43d8-887f-eebb1d1a9422">
+
 
 ### Build Instructions
 
