@@ -13,3 +13,6 @@
 # Ignore the cmake-build-debug folder
 /cmake-build-debug
 
+# Ignore .DS_Store
+.DS_Store
+

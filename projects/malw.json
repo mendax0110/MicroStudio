@@ -1,0 +1,43 @@
+{
+  "project": {
+    "name": "Malw",
+    "version": "1.0.0",
+    "description": "Simple Malware project",
+    "author": "mendax0110",
+    "license": "MIT"
+  },
+  "files": {
+    "sources": [
+      "src/main.cpp",
+      "src/module1.cpp",
+      "src/module2.cpp"
+    ],
+    "headers": [
+      "include/module1.h",
+      "include/module2.h"
+    ],
+    "resources": [
+      "assets/data.txt",
+      "assets/config.json"
+    ]
+  },
+  "build": {
+    "compiler": {
+      "name": "g++",
+      "version": "11.2"
+    },
+    "flags": [
+      "-std=c++17",
+      "-Wall",
+      "-O2"
+    ],
+    "output": {
+      "directory": "build",
+      "executable": "malw_executable"
+    }
+  },
+  "dependencies": [
+    "lib1",
+    "lib2"
+  ]
+}

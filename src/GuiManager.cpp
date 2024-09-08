@@ -340,6 +340,19 @@ void GuiManager::RenderMainMenu()
                 }
                 ImGui::EndMenu();
             }
+            if (ImGui::BeginMenu("Help"))
+            {
+                if (ImGui::MenuItem("Documentation"))
+                {
+                    std::cout << "[INFO] Opening documentation." << std::endl;
+                    //TODO: ADD PATH TO DOCS
+                }
+                if (ImGui::MenuItem("About"))
+                {
+                    ImGui::OpenPopup("About");
+                }
+                ImGui::EndMenu();
+            }
             ImGui::EndMainMenuBar();
         }
 
