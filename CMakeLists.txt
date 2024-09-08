@@ -13,6 +13,8 @@ include_directories(
         external/dearimgui
         external/imgui_file_dialog
         external/ImGuiColorTextEdit
+        external/imgui_club/imgui_multicontext_compositor
+        external/imgui_club/imgui_memory_editor
         ${GLFW3_INCLUDE_DIRS}
         ${OPENGL_INCLUDE_DIRS}
 )
@@ -34,6 +36,10 @@ set(IMGUI_COLOR_TEXT_EDIT_SOURCES
         external/ImGuiColorTextEdit/TextEditor.cpp
 )
 
+set(IMGUI_CLUB
+    external/imgui_club/imgui_multicontext_compositor/imgui_multicontext_compositor.cpp
+)
+
 set(SOURCES
         src/GuiManager.cpp
         src/TreeNode.cpp
@@ -47,8 +53,11 @@ set(SOURCES
         ${IMGUI_SOURCES}
         ${IMGUI_FILE_DIALOG_SOURCES}
         ${IMGUI_COLOR_TEXT_EDIT_SOURCES}
+        ${IMGUI_CLUB}
         src/FileHandler.cpp
 )
+
+add_definitions(-DIMGUI_DEFINE_MATH_OPERATORS)
 
 add_executable(${PROJECT_NAME} ${SOURCES})
 

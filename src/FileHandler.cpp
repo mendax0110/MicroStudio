@@ -15,9 +15,18 @@ FileHandler::~FileHandler() = default;
 
 bool FileHandler::CreateFile(const std::string &filePath, const std::string &fileName)
 {
-    std::string fullPath = filePath + "/" + fileName;
+    std::filesystem::path fullPath;
 
-    if (FileExists(fullPath))
+    if (filePath.empty())
+    {
+        fullPath = std::filesystem::current_path() / fileName;
+    }
+    else
+    {
+        fullPath = std::filesystem::path(filePath) / fileName;
+    }
+
+    if (FileExists(fullPath.string()))
     {
         std::cerr << "[ERROR] File already exists: " << fullPath << std::endl;
         return false;

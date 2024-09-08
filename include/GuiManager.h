@@ -27,6 +27,9 @@ namespace MicroStudio
         ~GuiManager();
         void Run();
 
+        void LoadData(const std::vector<uint8_t>& newData);
+        void UpdateData(const std::vector<uint8_t>& newData);
+
     private:
         void RenderMainMenu();
         void RenderFileDialog();
@@ -39,7 +42,9 @@ namespace MicroStudio
         void RunCompiledCode();
         void CompileSelectedFile();
         void OpenFolder();
-        void CreateNewFile();
+        void MemoryEditor();
+        void OpenFileAndLoadData(const std::filesystem::path& path);
+        static void SetupDocking();
 
         struct OpenFile
         {
@@ -78,12 +83,16 @@ namespace MicroStudio
         DebuggerHelper debugger;
         ShellManager shellManager;
         FileHandler fileHandler;
+
+        std::vector<uint8_t> data;
+        size_t data_size;
     };
 
     enum class ActiveDialog
     {
         None,
         OpenFile,
-        CreateFile
+        CreateFile,
+        SaveFile
     };
 }

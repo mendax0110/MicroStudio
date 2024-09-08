@@ -8,3 +8,9 @@
 [submodule "external/ImGuiColorTextEdit"]
 	path = external/ImGuiColorTextEdit
 	url = https://github.com/BalazsJako/ImGuiColorTextEdit.git
+[submodule "external/ImHex"]
+	path = external/ImHex
+	url = https://github.com/WerWolv/ImHex
+[submodule "external/imgui_club"]
+	path = external/imgui_club
+	url = https://github.com/ocornut/imgui_club.git

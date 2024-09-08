@@ -44,12 +44,30 @@ void ShellManager::StopShellProcess()
 {
     if (shellPid > 0)
     {
-        kill(shellPid, SIGTERM);
+        if (kill(shellPid, SIGTERM) == -1)
+        {
+            std::cerr << "Failed to send SIGTERM to shell process: " << strerror(errno) << std::endl;
+        }
+
         int status;
-        pid_t result = waitpid(shellPid, &status, 0);
+        pid_t result = waitpid(shellPid, &status, WNOHANG);
         if (result == -1)
         {
             std::cerr << "Error waiting for shell process to terminate: " << strerror(errno) << std::endl;
+        }
+        else if (result == 0)
+        {
+            std::cerr << "Shell process did not terminate gracefully. Forcing termination." << std::endl;
+            if (kill(shellPid, SIGKILL) == -1)
+            {
+                std::cerr << "Failed to send SIGKILL to shell process: " << strerror(errno) << std::endl;
+            }
+
+            result = waitpid(shellPid, &status, 0);
+            if (result == -1)
+            {
+                std::cerr << "Error waiting for shell process to terminate: " << strerror(errno) << std::endl;
+            }
         }
 
         if (shellThread.joinable())

@@ -1,3 +1,5 @@
+#define IMGUI_DEFINE_MATH_OPERATORS
+
 #include "../include/GuiManager.h"
 #include <iostream>
 #include <fstream>
@@ -10,12 +12,20 @@
 #include <filesystem>
 #include "../include/json.hpp"
 #include "../external/dearimgui/examples/libs/glfw/include/GLFW/glfw3.h"
+#include "../external/imgui_club/imgui_memory_editor/imgui_memory_editor.h"
+#include "imgui_internal.h"
 
 using namespace MicroStudio;
 using json = nlohmann::json;
 
+ActiveDialog currentFileDialog = ActiveDialog::None;
+static MemoryEditor mem_edit;
+
 GuiManager::GuiManager()
-        : compileDone(false), settingsOpen(false), rootNode(nullptr), bgColor(0.45f, 0.55f, 0.60f, 1.00f), isNewFileLoaded(false)
+        : compileDone(false), settingsOpen(false),
+            rootNode(nullptr), bgColor(0.45f, 0.55f, 0.60f, 1.00f),
+            isNewFileLoaded(false),
+            data_size(0)
 {
     glfwInit();
     window = glfwCreateWindow(1280, 720, "MicroStudio", nullptr, nullptr);
@@ -59,12 +69,45 @@ GuiManager::~GuiManager()
         compileThread.join();
     }
     debugger.StopDebugging();
-    //shellManager.StopShellProcess();
+    shellManager.StopShellProcess();
+}
+
+void GuiManager::SetupDocking()
+{
+    ImGuiID dockspace_id = ImGui::GetID("MyDockSpace");
+
+    ImGui::DockBuilderRemoveNode(dockspace_id);
+    ImGui::DockBuilderAddNode(dockspace_id, ImGuiDockNodeFlags_DockSpace);
+    ImGui::DockBuilderSetNodeSize(dockspace_id, ImVec2(1280, 720));
+
+    ImGuiID dock_main_id = dockspace_id;
+    ImGuiID dock_left_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Left, 0.25f, nullptr, &dock_main_id);
+    ImGuiID dock_right_id = ImGui::DockBuilderSplitNode(dock_main_id, ImGuiDir_Right, 0.75f, nullptr, &dock_main_id);
+    ImGuiID dock_bottom_id = ImGui::DockBuilderSplitNode(dock_right_id, ImGuiDir_Down, 0.75f, nullptr, &dock_right_id);
+    ImGuiID dock_center_id = ImGui::DockBuilderSplitNode(dock_bottom_id, ImGuiDir_Left, 0.5f, nullptr, &dock_bottom_id);
+
+    ImGui::DockBuilderDockWindow("Project Explorer", dock_left_id);
+    ImGui::DockBuilderDockWindow("Text Editor", dock_center_id);
+    ImGui::DockBuilderDockWindow("Output", dock_bottom_id);
+    ImGui::DockBuilderDockWindow("Settings", dock_right_id);
+
+    ImGui::DockBuilderFinish(dockspace_id);
 }
 
 void GuiManager::Run()
 {
-    //shellManager.StartShellProcess();
+    //SetupDocking();
+
+    ImGuiStyle& style = ImGui::GetStyle();
+    style.WindowRounding = 5.0f;
+    style.Colors[ImGuiCol_WindowBg] = ImVec4(0.1f, 0.1f, 0.1f, 1.0f);
+    style.Colors[ImGuiCol_TitleBg] = ImVec4(0.2f, 0.2f, 0.2f, 1.0f);
+    style.Colors[ImGuiCol_TitleBgActive] = ImVec4(0.3f, 0.3f, 0.3f, 1.0f);
+    style.Colors[ImGuiCol_Button] = ImVec4(0.3f, 0.5f, 0.8f, 1.0f);
+    style.Colors[ImGuiCol_ButtonHovered] = ImVec4(0.4f, 0.6f, 0.9f, 1.0f);
+    style.Colors[ImGuiCol_ButtonActive] = ImVec4(0.2f, 0.4f, 0.7f, 1.0f);
+
+    shellManager.StartShellProcess();
 
     while (!glfwWindowShouldClose(window))
     {
@@ -72,6 +115,7 @@ void GuiManager::Run()
         glfwGetWindowSize(window, &windowWidth, &windowHeight);
         glClearColor(bgColor.x, bgColor.y, bgColor.z, bgColor.w);
         glClear(GL_COLOR_BUFFER_BIT);
+
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
         ImGui::NewFrame();
@@ -87,7 +131,8 @@ void GuiManager::Run()
         }
         RenderFileDialog();
 
-        //shellManager.RenderShellWindow();
+        shellManager.RenderShellWindow();
+        GuiManager::MemoryEditor();
 
         if (compileThread.joinable() && compileDone.load())
         {
@@ -124,260 +169,331 @@ void GuiManager::RenderDockingSpace()
 
 void GuiManager::RenderMainMenu()
 {
-    if (ImGui::BeginMainMenuBar())
+    if (currentFileDialog == ActiveDialog::None)
     {
-        if (ImGui::BeginMenu("File"))
+        if (ImGui::BeginMainMenuBar())
         {
-            if (ImGui::MenuItem("New File", "Ctrl+N"))
+            if (ImGui::BeginMenu("File"))
             {
-                fileDialog.OpenDialog("CreateNewFileDlg", "Create New File", ".cpp,.h,.hpp");
-                //CreateNewFile();
-            }
-            if (ImGui::MenuItem("Open", "Ctrl+O"))
-            {
-                fileDialog.OpenDialog("ChooseFileDlg", "Choose File", ".cpp,.h,.hpp");
-            }
-            if (ImGui::MenuItem("Save", "Ctrl+S"))
-            {
-                if (!filePathName.empty())
+                if (ImGui::MenuItem("New File", "Ctrl+N"))
                 {
-                    text = editor.GetText();
-                    std::ofstream ofs(filePath + "/" + filePathName, std::ofstream::trunc);
-                    if (ofs.is_open())
+                    currentFileDialog = ActiveDialog::CreateFile;
+                    fileDialog.OpenDialog("CreateNewFileDlg", "Create New File", ".cpp, .h, .hpp, .txt, .bin, .out, .*");
+                }
+                if (ImGui::MenuItem("Open", "Ctrl+O"))
+                {
+                    currentFileDialog = ActiveDialog::OpenFile;
+                    fileDialog.OpenDialog("ChooseFileDlg", "Choose File", ".cpp, .h, .hpp, .txt, .bin, .out, .*");
+                }
+                if (ImGui::MenuItem("Save", "Ctrl+S"))
+                {
+                    if (!filePathName.empty())
                     {
-                        ofs << text;
-                        ofs.close();
-                        std::cout << "[INFO] File saved successfully: " << filePathName << std::endl;
-                    }
-                    else
-                    {
-                        std::cerr << "[ERROR] Failed to open file for saving: " << filePathName << std::endl;
-                    }
-                }
-                else
-                {
-                    std::cerr << "[ERROR] No file path name available for saving." << std::endl;
-                }
-            }
-            if (ImGui::MenuItem("Compile", "F5"))
-            {
-                if (filePathName.empty())
-                {
-                    ImGui::OpenPopup("No File Selected");
-                    std::cerr << "[ERROR] No file selected for compilation." << std::endl;
-                    return;
-                }
-
-                if (filePathName.substr(filePathName.find_last_of('.') + 1) != "cpp")
-                {
-                    ImGui::OpenPopup("Invalid File Type");
-                    std::cerr << "[ERROR] Invalid file type selected: " << filePathName << std::endl;
-                    return;
-                }
-
-                compileDone.store(false);
-                buildOutput.clear();
-                output.clear();
-
-                std::string cmakeListsContent = R"(
-                    cmake_minimum_required(VERSION 3.10)
-                    project(DynamicBuild)
-
-                    set(CMAKE_CXX_STANDARD 17)
-
-                    add_executable(DynamicBuild )" + filePath + "/" + filePathName + R"()
-                )";
-
-                std::ofstream cmakeListsFile("CMakeLists.txt");
-                if (cmakeListsFile.is_open())
-                {
-                    cmakeListsFile << cmakeListsContent;
-                    cmakeListsFile.close();
-                    std::cout << "[INFO] Generated CMakeLists.txt with content:\n" << cmakeListsContent << std::endl;
-                }
-                else
-                {
-                    std::cerr << "[ERROR] Failed to open CMakeLists.txt for writing." << std::endl;
-                    return;
-                }
-
-                std::string cleanBuildCommand = "rm -rf build";
-                std::string buildCommand = "cmake -S . -B build && cmake --build build --config Release";
-
-                std::cout << "[INFO] Running clean command: " << cleanBuildCommand << std::endl;
-                std::cout << "[INFO] Running build command: " << buildCommand << std::endl;
-
-                compileThread = std::thread([this, cleanBuildCommand, buildCommand]() {
-                    std::array<char, 128> buffer{};
-                    std::string result;
-
-                    std::unique_ptr<FILE, decltype(&pclose)> cleanPipe(popen(cleanBuildCommand.c_str(), "r"), pclose);
-                    if (cleanPipe)
-                    {
-                        while (fgets(buffer.data(), buffer.size(), cleanPipe.get()) != nullptr)
+                        //currentFileDialog = ActiveDialog::SaveFile;
+                        text = editor.GetText();
+                        std::ofstream ofs(filePath + "/" + filePathName, std::ofstream::trunc);
+                        if (ofs.is_open())
                         {
-                            result += buffer.data();
+                            ofs << text;
+                            ofs.close();
+                            std::cout << "[INFO] File saved successfully: " << filePathName << std::endl;
                         }
-                        std::cout << "[INFO] Clean command output:\n" << result << std::endl;
-                    }
-                    else
-                    {
-                        std::cerr << "[ERROR] Clean command failed: " << cleanBuildCommand << std::endl;
-                    }
-
-                    result.clear();
-
-                    std::unique_ptr<FILE, decltype(&pclose)> buildPipe(popen(buildCommand.c_str(), "r"), pclose);
-                    if (!buildPipe)
-                    {
-                        result = "popen() failed!";
-                        std::cerr << "[ERROR] Build command failed to start: " << buildCommand << std::endl;
-                    }
-                    else
-                    {
-                        while (fgets(buffer.data(), buffer.size(), buildPipe.get()) != nullptr)
+                        else
                         {
-                            result += buffer.data();
+                            std::cerr << "[ERROR] Failed to open file for saving: " << filePathName << std::endl;
                         }
-                        std::cout << "[INFO] Build command output:\n" << result << std::endl;
                     }
-
+                    else
                     {
-                        std::lock_guard<std::mutex> lock(outputMutex);
-                        buildOutput = result;
-                        output = result;
+                        std::cerr << "[ERROR] No file path name available for saving." << std::endl;
                     }
-                    compileDone.store(true);
-                });
-            }
-            if (ImGui::MenuItem("Run", "Ctrl+R"))
-            {
-                std::cout << "[INFO] Running compiled code." << std::endl;
-                RunCompiledCode();
-            }
-            if (ImGui::MenuItem("Exit", "Alt+F4"))
-            {
-                std::cout << "[INFO] Exiting application." << std::endl;
-                glfwSetWindowShouldClose(window, GLFW_TRUE);
-            }
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Edit"))
-        {
-            if (ImGui::MenuItem("Undo", "Ctrl+Z", nullptr, undoStack.size() > 1))
-            {
-                redoStack.push(text);
-                undoStack.pop();
-                text = undoStack.top();
-                std::cout << "[INFO] Undo operation performed." << std::endl;
-            }
+                }
+                if (ImGui::MenuItem("Compile", "F5"))
+                {
+                    if (filePathName.empty())
+                    {
+                        ImGui::OpenPopup("No File Selected");
+                        std::cerr << "[ERROR] No file selected for compilation." << std::endl;
+                        return;
+                    }
 
-            if (ImGui::MenuItem("Redo", "Ctrl+Y", nullptr, !redoStack.empty()))
-            {
-                undoStack.push(text);
-                text = redoStack.top();
-                redoStack.pop();
-                std::cout << "[INFO] Redo operation performed." << std::endl;
+                    if (filePathName.substr(filePathName.find_last_of('.') + 1) != "cpp")
+                    {
+                        ImGui::OpenPopup("Invalid File Type");
+                        std::cerr << "[ERROR] Invalid file type selected: " << filePathName << std::endl;
+                        return;
+                    }
+
+                    compileDone.store(false);
+                    buildOutput.clear();
+                    output.clear();
+
+                    std::string cmakeListsContent = R"(
+                        cmake_minimum_required(VERSION 3.10)
+                        project(DynamicBuild)
+
+                        set(CMAKE_CXX_STANDARD 17)
+
+                        add_executable(DynamicBuild )" + filePath + "/" + filePathName + R"()
+                    )";
+
+                    std::ofstream cmakeListsFile("CMakeLists.txt");
+                    if (cmakeListsFile.is_open())
+                    {
+                        cmakeListsFile << cmakeListsContent;
+                        cmakeListsFile.close();
+                        std::cout << "[INFO] Generated CMakeLists.txt with content:\n" << cmakeListsContent << std::endl;
+                    }
+                    else
+                    {
+                        std::cerr << "[ERROR] Failed to open CMakeLists.txt for writing." << std::endl;
+                        return;
+                    }
+
+                    std::string cleanBuildCommand = "rm -rf build";
+                    std::string buildCommand = "cmake -S . -B build && cmake --build build --config Release";
+
+                    std::cout << "[INFO] Running clean command: " << cleanBuildCommand << std::endl;
+                    std::cout << "[INFO] Running build command: " << buildCommand << std::endl;
+
+                    compileThread = std::thread([this, cleanBuildCommand, buildCommand]() {
+                        std::array<char, 128> buffer{};
+                        std::string result;
+
+                        std::unique_ptr<FILE, decltype(&pclose)> cleanPipe(popen(cleanBuildCommand.c_str(), "r"), pclose);
+                        if (cleanPipe)
+                        {
+                            while (fgets(buffer.data(), buffer.size(), cleanPipe.get()) != nullptr)
+                            {
+                                result += buffer.data();
+                            }
+                            std::cout << "[INFO] Clean command output:\n" << result << std::endl;
+                        }
+                        else
+                        {
+                            std::cerr << "[ERROR] Clean command failed: " << cleanBuildCommand << std::endl;
+                        }
+
+                        result.clear();
+
+                        std::unique_ptr<FILE, decltype(&pclose)> buildPipe(popen(buildCommand.c_str(), "r"), pclose);
+                        if (!buildPipe)
+                        {
+                            result = "popen() failed!";
+                            std::cerr << "[ERROR] Build command failed to start: " << buildCommand << std::endl;
+                        }
+                        else
+                        {
+                            while (fgets(buffer.data(), buffer.size(), buildPipe.get()) != nullptr)
+                            {
+                                result += buffer.data();
+                            }
+                            std::cout << "[INFO] Build command output:\n" << result << std::endl;
+                        }
+
+                        {
+                            std::lock_guard<std::mutex> lock(outputMutex);
+                            buildOutput = result;
+                            output = result;
+                        }
+                        compileDone.store(true);
+                    });
+                }
+                if (ImGui::MenuItem("Run", "Ctrl+R"))
+                {
+                    std::cout << "[INFO] Running compiled code." << std::endl;
+                    RunCompiledCode();
+                }
+                if (ImGui::MenuItem("Exit", "Alt+F4"))
+                {
+                    std::cout << "[INFO] Exiting application." << std::endl;
+                    glfwSetWindowShouldClose(window, GLFW_TRUE);
+                }
+                ImGui::EndMenu();
             }
-
-            ImGui::EndMenu();
-        }
-        if (ImGui::BeginMenu("Settings"))
-        {
-            if (ImGui::MenuItem("Open Settings"))
+            if (ImGui::BeginMenu("Edit"))
             {
-                settingsOpen = true;
-                std::cout << "[INFO] Settings menu opened." << std::endl;
+                if (ImGui::MenuItem("Undo", "Ctrl+Z", nullptr, undoStack.size() > 1))
+                {
+                    redoStack.push(text);
+                    undoStack.pop();
+                    text = undoStack.top();
+                    std::cout << "[INFO] Undo operation performed." << std::endl;
+                }
+
+                if (ImGui::MenuItem("Redo", "Ctrl+Y", nullptr, !redoStack.empty()))
+                {
+                    undoStack.push(text);
+                    text = redoStack.top();
+                    redoStack.pop();
+                    std::cout << "[INFO] Redo operation performed." << std::endl;
+                }
+
+                ImGui::EndMenu();
             }
-            ImGui::EndMenu();
+            if (ImGui::BeginMenu("Settings"))
+            {
+                if (ImGui::MenuItem("Open Settings"))
+                {
+                    settingsOpen = true;
+                    std::cout << "[INFO] Settings menu opened." << std::endl;
+                }
+                ImGui::EndMenu();
+            }
+            ImGui::EndMainMenuBar();
         }
-        ImGui::EndMainMenuBar();
-    }
 
-    if (ImGui::BeginPopup("No File Selected"))
-    {
-        ImGui::Text("No file selected for compilation.");
-        if (ImGui::Button("OK"))
+        if (ImGui::BeginPopup("No File Selected"))
         {
-            std::cout << "[INFO] No file selected popup closed." << std::endl;
-            ImGui::CloseCurrentPopup();
+            ImGui::Text("No file selected for compilation.");
+            if (ImGui::Button("OK"))
+            {
+                std::cout << "[INFO] No file selected popup closed." << std::endl;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
-        ImGui::EndPopup();
-    }
 
-    if (ImGui::BeginPopup("Invalid File Type"))
-    {
-        ImGui::Text("Selected file is not a .cpp file. Please select a valid .cpp file to compile.");
-        if (ImGui::Button("OK"))
+        if (ImGui::BeginPopup("Invalid File Type"))
         {
-            std::cout << "[INFO] Invalid file type popup closed." << std::endl;
-            ImGui::CloseCurrentPopup();
+            ImGui::Text("Selected file is not a .cpp file. Please select a valid .cpp file to compile.");
+            if (ImGui::Button("OK"))
+            {
+                std::cout << "[INFO] Invalid file type popup closed." << std::endl;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
-        ImGui::EndPopup();
-    }
 
-    if (ImGui::BeginPopup("No Executable"))
-    {
-        ImGui::Text("No executable set. Please compile your code first.");
-        if (ImGui::Button("OK"))
+        if (ImGui::BeginPopup("No Executable"))
         {
-            std::cout << "[INFO] No executable popup closed." << std::endl;
-            ImGui::CloseCurrentPopup();
+            ImGui::Text("No executable set. Please compile your code first.");
+            if (ImGui::Button("OK"))
+            {
+                std::cout << "[INFO] No executable popup closed." << std::endl;
+                ImGui::CloseCurrentPopup();
+            }
+            ImGui::EndPopup();
         }
-        ImGui::EndPopup();
     }
 }
 
 void GuiManager::RenderFileDialog()
 {
-    if (fileDialog.Display("ChooseFileDlg"))
+    if (currentFileDialog == ActiveDialog::OpenFile)
     {
-        if (fileDialog.IsOk())
+        if (fileDialog.Display("ChooseFileDlg"))
         {
-            std::filesystem::path selectedPath = fileDialog.GetFilePathName();
-            std::string fileName = selectedPath.filename().string();
-            std::string filePath = selectedPath.parent_path().string();
-
-            filePathName = fileName;
-            rootDirectory = filePath;
-
-            bool isFileOpen = false;
-            for (size_t i = 0; i < openFiles.size(); ++i)
+            if (fileDialog.IsOk())
             {
-                if (openFiles[i].filePath == filePath && openFiles[i].fileName == fileName)
+                std::filesystem::path selectedPath = fileDialog.GetFilePathName();
+                std::string fileName = selectedPath.filename().string();
+                std::string filePath = selectedPath.parent_path().string();
+
+                filePathName = fileName;
+                rootDirectory = filePath;
+
+                bool isFileOpen = false;
+                for (size_t i = 0; i < openFiles.size(); ++i)
                 {
-                    currentFileIndex = i;
-                    isFileOpen = true;
-                    break;
+                    if (openFiles[i].filePath == filePath && openFiles[i].fileName == fileName)
+                    {
+                        currentFileIndex = i;
+                        isFileOpen = true;
+                        break;
+                    }
                 }
-            }
 
-            if (!isFileOpen)
-            {
-                OpenFile newFile;
-                newFile.fileName = fileName;
-                newFile.filePath = filePath;
-
-                std::ifstream inFile(selectedPath, std::ios::in | std::ios::binary);
-                if (inFile)
+                if (!isFileOpen)
                 {
-                    std::ostringstream ss;
-                    ss << inFile.rdbuf();
-                    newFile.content = ss.str();
+                    OpenFile newFile;
+                    newFile.fileName = fileName;
+                    newFile.filePath = filePath;
 
-                    newFile.editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
-                    newFile.editor.SetText(newFile.content);
+                    std::ifstream inFile(selectedPath, std::ios::in | std::ios::binary);
+                    if (inFile)
+                    {
+                        std::ostringstream ss;
+                        ss << inFile.rdbuf();
+                        newFile.content = ss.str();
 
-                    openFiles.push_back(newFile);
-                    currentFileIndex = openFiles.size() - 1;
+                        newFile.editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
+                        newFile.editor.SetText(newFile.content);
+
+                        openFiles.push_back(newFile);
+                        currentFileIndex = openFiles.size() - 1;
+                    }
+                    else
+                    {
+                        std::cerr << "[ERROR] Failed to open file: " << selectedPath << std::endl;
+                    }
+                }
+
+                OpenFileAndLoadData(selectedPath);
+            }
+            fileDialog.Close();
+            currentFileDialog = ActiveDialog::None;
+        }
+    }
+    else if (currentFileDialog == ActiveDialog::CreateFile)
+    {
+        ImGui::OpenPopup("Create New File");
+
+        if (ImGui::BeginPopupModal("Create New File", nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+        {
+            static char fileNameBuffer[128] = "";
+            ImGui::InputText("File Name", fileNameBuffer, IM_ARRAYSIZE(fileNameBuffer));
+
+            if (ImGui::Button("Create"))
+            {
+                std::string newFileName = fileNameBuffer;
+                std::filesystem::path newFilePath = std::filesystem::current_path() / newFileName;
+
+                bool fileCreated = fileHandler.CreateFile("", newFileName);
+                if (fileCreated)
+                {
+                    std::cout << "[INFO] New file created: " << newFilePath << std::endl;
+
+                    OpenFile newFile;
+                    newFile.fileName = newFileName;
+                    newFile.filePath = newFilePath.string();
+
+                    std::ifstream inFile(newFile.filePath, std::ios::in | std::ios::binary);
+                    if (inFile)
+                    {
+                        std::ostringstream ss;
+                        ss << inFile.rdbuf();
+                        newFile.content = ss.str();
+
+                        newFile.editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
+                        newFile.editor.SetText(newFile.content);
+
+                        openFiles.push_back(newFile);
+                        currentFileIndex = openFiles.size() - 1;
+                    }
+                    else
+                    {
+                        std::cerr << "[ERROR] Failed to open file: " << newFile.filePath << std::endl;
+                    }
                 }
                 else
                 {
-                    std::cerr << "Failed to open file: " << selectedPath << std::endl;
+                    std::cerr << "[ERROR] Failed to create file: " << newFileName << std::endl;
                 }
+
+                ImGui::CloseCurrentPopup();
+                currentFileDialog = ActiveDialog::None;
             }
+
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel"))
+            {
+                ImGui::CloseCurrentPopup();
+                currentFileDialog = ActiveDialog::None;
+            }
+
+            ImGui::EndPopup();
         }
-        fileDialog.Close();
     }
 }
 
@@ -393,7 +509,9 @@ void GuiManager::RenderProjectExplorer()
             {
                 const std::string& path = entry.path().string();
                 const bool isDirectory = entry.is_directory();
-                const bool selected = (currentFileIndex != -1) && (openFiles[currentFileIndex].filePath == path) && (openFiles[currentFileIndex].fileName == entry.path().filename().string());
+                const bool selected = (currentFileIndex != -1) &&
+                        (openFiles[currentFileIndex].filePath == path) &&
+                        (openFiles[currentFileIndex].fileName == entry.path().filename().string());
 
                 if (isDirectory)
                 {
@@ -524,7 +642,7 @@ void GuiManager::ParseBuildOutput()
     {
         if (line.find("Built target") != std::string::npos)
         {
-            std::size_t pos = line.find_last_of(" ");
+            std::size_t pos = line.find_last_of(' ');
             if (pos != std::string::npos)
             {
                 executableName = line.substr(pos + 1);
@@ -554,7 +672,8 @@ void GuiManager::RunCompiledCode()
 
 void GuiManager::CompileSelectedFile()
 {
-    if (filePathName.empty()) {
+    if (filePathName.empty())
+    {
         std::cerr << "No file selected for compilation." << std::endl;
         return;
     }
@@ -599,43 +718,30 @@ void GuiManager::CompileSelectedFile()
     });
 }
 
-void GuiManager::OpenFolder()
+void GuiManager::MemoryEditor()
 {
-
+    mem_edit.DrawWindow("Memory Editor", data.data(), data_size);
 }
 
-void GuiManager::CreateNewFile()
+void GuiManager::LoadData(const std::vector<uint8_t>& newData)
 {
-    if (fileDialog.Display("CreateNewFileDlg"))
+    data = newData;
+    data_size = data.size();
+}
+
+void GuiManager::UpdateData(const std::vector<uint8_t>& newData)
+{
+    data = newData;
+    data_size = data.size();
+}
+
+void GuiManager::OpenFileAndLoadData(const std::filesystem::path& path)
+{
+    std::ifstream file(path, std::ios::binary);
+    if (file)
     {
-        if (fileDialog.IsOk()) {
-            std::string newFilePath = fileDialog.GetFilePathName();
-            std::string newFileName = fileDialog.GetCurrentFileName();
-
-            bool fileCreated = fileHandler.CreateFile(newFilePath, newFileName);
-            if (fileCreated) {
-                std::cout << "[INFO] New file created: " << newFileName << std::endl;
-
-                OpenFile newFile;
-                newFile.fileName = newFileName;
-                newFile.filePath = newFilePath;
-
-                std::ifstream inFile(newFilePath, std::ios::in | std::ios::binary);
-                if (inFile) {
-                    std::ostringstream ss;
-                    ss << inFile.rdbuf();
-                    newFile.content = ss.str();
-
-                    newFile.editor.SetLanguageDefinition(TextEditor::LanguageDefinition::CPlusPlus());
-                    newFile.editor.SetText(newFile.content);
-
-                    openFiles.push_back(newFile);
-                    currentFileIndex = openFiles.size() - 1;
-                } else {
-                    std::cerr << "[ERROR] Failed to open file: " << newFilePath << std::endl;
-                }
-            }
-        }
-        fileDialog.Close();
+        std::vector<uint8_t> fileData((std::istreambuf_iterator<char>(file)),
+                                      std::istreambuf_iterator<char>());
+        LoadData(fileData);
     }
 }
