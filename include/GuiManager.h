@@ -45,6 +45,26 @@ namespace MicroStudio
         void MemoryEditor();
         void OpenFileAndLoadData(const std::filesystem::path& path);
         static void SetupDocking();
+        void Redo();
+        void Undo();
+        void RunBuildCommands();
+        void GenerateCMakeLists();
+        void CompileFile();
+        void SaveFile();
+        static void RenderPopups();
+        static void RenderHelpMenu();
+        void RenderSettingsMenu();
+        void RenderEditMenu();
+        void RenderFileMenu();
+        void RenderMainMenuBar();
+        void HandleFileOpen(const std::string& fileName,
+                            const std::string& filePath,
+                            const std::filesystem::path& selectedPath);
+        void HandleOpenFileDialog();
+        bool IsFileOpen(const std::string& filePath, const std::string& fileName);
+        void HandleCreateFileDialog();
+        void CreateNewFileFromDialog(const char* fileNameBuffer);
+
 
         struct OpenFile
         {
@@ -54,6 +74,7 @@ namespace MicroStudio
             TextEditor editor;
             std::string fileData;
         };
+        static OpenFile CreateNewFile(const std::string& fileName, const std::string& filePath, const std::filesystem::path& selectedPath);
 
         std::vector<OpenFile> openFiles;
         int currentFileIndex = -1;
