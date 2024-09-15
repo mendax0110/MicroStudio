@@ -781,6 +781,30 @@ void GuiManager::ParseBuildOutput()
     }
 }
 
+std::vector<CompilerError> GuiManager::ParseCompilerErrors(const std::string& buildOutput)
+{
+    std::vector<CompilerError> errors;
+    std::istringstream stream(buildOutput);
+    std::string line;
+
+    while (std::getline(stream, line))
+    {
+        size_t fileEnd = line.find(':');
+        size_t lineEnd = line.find(':', fileEnd + 1);
+
+        if (fileEnd != std::string::npos && lineEnd != std::string::npos)
+        {
+            std::string file = line.substr(0, fileEnd);
+            int lineNumber = std::stoi(line.substr(fileEnd + 1, lineEnd - fileEnd - 1));
+            std::string message = line.substr(lineEnd + 2);
+
+            errors.emplace_back(CompilerError{file, lineNumber, message});
+        }
+    }
+
+    return errors;
+}
+
 void GuiManager::RunCompiledCode()
 {
     if (filePathName.empty())

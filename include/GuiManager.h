@@ -30,6 +30,9 @@ namespace MicroStudio
         void LoadData(const std::vector<uint8_t>& newData);
         void UpdateData(const std::vector<uint8_t>& newData);
 
+        CompilerType currentCompiler = CompilerType::SingleFile;
+        CompilerTarget currentTarget = CompilerTarget::SingleFile;
+
     private:
         void RenderMainMenu();
         void RenderFileDialog();
@@ -48,8 +51,11 @@ namespace MicroStudio
         void Redo();
         void Undo();
         void RunBuildCommands();
+        void RunBuildCommands(const std::string& buildSystem, CompilerTarget target);
         void GenerateCMakeLists();
+        void GenerateCMakeListsForTarget(CompilerTarget target);
         void CompileFile();
+        void CompileSingleFile();
         void SaveFile();
         static void RenderPopups();
         static void RenderHelpMenu();
@@ -64,7 +70,12 @@ namespace MicroStudio
         bool IsFileOpen(const std::string& filePath, const std::string& fileName);
         void HandleCreateFileDialog();
         void CreateNewFileFromDialog(const char* fileNameBuffer);
-
+        static std::string GetPlatformSpecificCleanCommand();
+        void RunCommand(const std::string& command);
+        std::string GenerateProjectFileList();
+        void CompileProject();
+        std::vector<CompilerError> ParseCompilerErrors(const std::string& buildOutput);
+        void ShowErrorList(const std::vector<CompilerError>& errors);
 
         struct OpenFile
         {

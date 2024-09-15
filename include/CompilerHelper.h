@@ -28,4 +28,25 @@ namespace MicroStudio
         std::mutex outputMutex;
         std::string buildOutput;
     };
+
+    enum class CompilerType
+    {
+        CMake,
+        Makefile,
+        SingleFile
+    };
+
+    enum class CompilerTarget
+    {
+        SingleFile,
+        WholeProject
+    };
+
+    struct CompilerError
+    {
+        std::string file;
+        int line;
+        std::string message;
+    };
+
 }
