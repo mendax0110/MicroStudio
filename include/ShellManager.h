@@ -3,8 +3,9 @@
 #include <string>
 #include <thread>
 #include <mutex>
+#if defined(__APPLE__) || (__LINUX)
 #include <util.h>
-
+#endif
 namespace MicroStudio
 {
     class ShellManager
@@ -23,7 +24,11 @@ namespace MicroStudio
         std::thread shellThread;
         std::mutex shellOutputWindow;
         std::string shellOutput;
+#if defined(__APPLE__) || defined(__LINUX__)
         pid_t shellPid{};
+#elif defined(_WIN32)
+        int shellPid{};
+#endif
 
         void CaptureShellOutput();
     };

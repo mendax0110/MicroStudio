@@ -4,8 +4,16 @@ project(MicroStudio VERSION 1.0)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-set(GLFW3_INCLUDE_DIRS "/opt/homebrew/opt/glfw/include")
-set(GLFW3_LIBRARIES "/opt/homebrew/opt/glfw/lib/libglfw.dylib")
+if (__APPLE__)
+        set(GLFW3_INCLUDE_DIRS "/opt/homebrew/opt/glfw/include")
+        set(GLFW3_LIBRARIES "/opt/homebrew/opt/glfw/lib/libglfw.dylib")
+endif()
+
+if (WIN32)
+    set(GLFW3_INCLUDE_DIRS "${CMAKE_SOURCE_DIR}/external/dearimgui/examples/libs/glfw/include")
+    set(GLFW3_LIBRARIES "${CMAKE_SOURCE_DIR}/external/dearimgui/examples/libs/glfw/lib-vc2010-64/glfw3.lib")
+    link_directories("${CMAKE_SOURCE_DIR}/external/dearimgui/examples/libs/glfw/lib-vc2010-64")
+endif()
 
 find_package(OpenGL REQUIRED)
 
@@ -71,4 +79,10 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/lib")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
 
-target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -O3)
+if(APPLE)       
+        target_compile_options(${PROJECT_NAME} PRIVATE -Wall -Wextra -Wpedantic -O3)
+endif()
+
+if(WIN32)
+        target_compile_options(${PROJECT_NAME} PRIVATE)
+endif()

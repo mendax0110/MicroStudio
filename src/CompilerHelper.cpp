@@ -78,7 +78,11 @@ void CompilerHelper::ExecuteBuild(const std::string& cleanCommand, const std::st
     std::array<char, 128> buffer{};
     std::string result;
 
+#if defined (__APPLE__) || defined(__LINUX__)
     std::unique_ptr<FILE, decltype(&pclose)> cleanPipe(popen(cleanCommand.c_str(), "r"), pclose);
+#elif defined(_WIN32)
+    std::unique_ptr<FILE, decltype(&_pclose)> cleanPipe(_popen(cleanCommand.c_str(), "r"), _pclose);
+#endif
     if (cleanPipe)
     {
         while (fgets(buffer.data(), buffer.size(), cleanPipe.get()) != nullptr)
@@ -94,7 +98,11 @@ void CompilerHelper::ExecuteBuild(const std::string& cleanCommand, const std::st
 
     result.clear();
 
+#if defined (__APPLE__) || defined(__LINUX__)
     std::unique_ptr<FILE, decltype(&pclose)> buildPipe(popen(buildCommand.c_str(), "r"), pclose);
+#elif defined(_WIN32)
+    std::unique_ptr<FILE, decltype(&_pclose)> buildPipe(_popen(buildCommand.c_str(), "r"), _pclose);
+#endif
     if (!buildPipe)
     {
         result = "popen() failed!";

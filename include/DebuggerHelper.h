@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <iostream>
 
 namespace MicroStudio
 {
@@ -18,7 +19,11 @@ namespace MicroStudio
 
     private:
         bool isDebugging;
+#if defined(__APPLE__) || defined(__LINUX__)
         pid_t debugProcessPid;
+#elif defined(_WIN32)
+        int debugProcessPid;
+#endif
         std::string debuggerExecutable;
 
         void DetermineDebugger();

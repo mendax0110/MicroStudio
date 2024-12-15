@@ -1,4 +1,6 @@
-#define IMGUI_DEFINE_MATH_OPERATORS
+#if defined (__APPLE__) || defined(__linux__)
+    #define IMGUI_DEFINE_MATH_OPERATORS
+#endif
 
 #include "../include/GuiManager.h"
 #include <iostream>
@@ -11,7 +13,7 @@
 #include <array>
 #include <filesystem>
 #include "../include/json.hpp"
-#include "../external/dearimgui/examples/libs/glfw/include/GLFW/glfw3.h"
+#include <examples/libs/glfw/include/GLFW/glfw3.h>
 #include "../external/imgui_club/imgui_memory_editor/imgui_memory_editor.h"
 #include "imgui_internal.h"
 
@@ -427,7 +429,11 @@ void GuiManager::RunBuildCommands()
         std::array<char, 128> buffer{};
         std::string result;
 
-        std::unique_ptr<FILE, decltype(&pclose)> cleanPipe(popen(cleanBuildCommand.c_str(), "r"), pclose);
+#if defined (__APPLE__) || defined(__linux__)
+                    std::unique_ptr<FILE, decltype(&pclose)> cleanPipe(popen(cleanBuildCommand.c_str(), "r"), pclose);
+#elif defined(_WIN32)
+                    std::unique_ptr<FILE, decltype(&_pclose)> cleanPipe(_popen(cleanBuildCommand.c_str(), "r"), _pclose);
+#endif
         if (cleanPipe)
         {
             while (fgets(buffer.data(), buffer.size(), cleanPipe.get()) != nullptr)
@@ -443,7 +449,11 @@ void GuiManager::RunBuildCommands()
 
         result.clear();
 
-        std::unique_ptr<FILE, decltype(&pclose)> buildPipe(popen(buildCommand.c_str(), "r"), pclose);
+#if defined (__APPLE__) || defined(__linux__)
+                    std::unique_ptr<FILE, decltype(&pclose)> buildPipe(popen(buildCommand.c_str(), "r"), pclose);
+#elif defined(_WIN32)
+                    std::unique_ptr<FILE, decltype(&_pclose)> buildPipe(_popen(buildCommand.c_str(), "r"), _pclose);
+#endif
         if (!buildPipe)
         {
             result = "popen() failed!";
@@ -851,7 +861,11 @@ void GuiManager::CompileSelectedFile()
     compileThread = std::thread([this, compileCommand]() {
         std::array<char, 128> buffer{};
         std::string result;
+#if defined (__APPLE__) || defined(__linux__)
         std::unique_ptr<FILE, decltype(&pclose)> pipe(popen(compileCommand.c_str(), "r"), pclose);
+#elif defined(_WIN32)
+        std::unique_ptr<FILE, decltype(&_pclose)> pipe(_popen(compileCommand.c_str(), "r"), _pclose);
+#endif
         if (!pipe)
         {
             result = "popen() failed!";
